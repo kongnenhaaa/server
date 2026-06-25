@@ -272,7 +272,8 @@ def process_token_data(token_data):
             if exchanged_token:
                 with print_lock:
                     print(f" {Colors.OKGREEN}[EXCHANGE SUCCESS] Đổi thành công!{Colors.ENDC}")
-                # Không lưu exchanged_token vào token_data để loại bỏ khỏi file json
+                # Lưu exchanged_token vào token_data để xuất ra file json
+                token_data["exchange"] = exchanged_token
             else:
                 with print_lock:
                     print(f" {Colors.FAIL}[EXCHANGE FAILED] Không thể đổi token.{Colors.ENDC}")
