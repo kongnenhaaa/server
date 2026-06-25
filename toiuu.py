@@ -2786,10 +2786,6 @@ def _process_device_internal(app, device_id, phone, adb_path, offset_captcha, se
         gender = random.choice(["Male", "Female"])
         app.log(f"[{device_id}] Selecting gender: {gender}")
         
-        if not wait_for_text(app, device_id, ["Male", "Female", "Nam", "Female"], adb_path, timeout=UI_DUMP_TIMEOUT):
-            app.log(f"[{device_id}] Không tìm thấy màn hình chọn Giới tính", level="WARN")
-            return "UI_UNKNOWN"
-        
         if adb_click_text(app, device_id, ["Birthday", "Birthday", "199"], adb_path): 
             duration_year = random.randint(8000, 12000)
             cx1 = int(screen_w * (728 / 1080))
@@ -2809,7 +2805,8 @@ def _process_device_internal(app, device_id, phone, adb_path, offset_captcha, se
             adb_click_text(app, device_id, ["Select", "Select"], adb_path, exact_match=True)
  
         if adb_click_text(app, device_id, ["Gender", "Gender"], adb_path):
-            gender_select = random.choice([["Male", "Nam"], ["Female", "Female"]])
+            app_sleep(app, 1, device_id)
+            gender_select = ["Male", "Nam"] if gender == "Male" else ["Female", "Nữ"]
             adb_click_text(app, device_id, gender_select, adb_path)
             
         adb_click_text(app, device_id, ["Next", "Continue"], adb_path)
