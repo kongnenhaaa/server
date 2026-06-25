@@ -995,12 +995,13 @@ class ZaloAutoUIApp(ctk.CTk):
             return 0.0
         return 0.0
 
-    def update_device_ui(self, device_id, phone=None, status_text=None, text_color="#e2e8f0"):
+    def update_device_ui(self, device_id, phone=None, status_text=None, text_color="#e2e8f0", reset_timer=False):
         def _update():
             if device_id in self.device_ui_elements:
                 el = self.device_ui_elements[device_id]
                 if phone is not None:
                     el['phone_lbl'].configure(text=f"📞 {phone}")
+                if reset_timer:
                     el['task_start_time'] = time.time()
                 if status_text is not None:
                     el['status_lbl'].configure(text=status_text, text_color=text_color)
@@ -1461,7 +1462,7 @@ class ZaloAutoUIApp(ctk.CTk):
                 break
 
             firefox_pkey = None
-            self.update_device_ui(device_id, phone=phone, status_text="🔄 Starting task…", text_color=COLORS["accent_amber"])
+            self.update_device_ui(device_id, phone=phone, status_text="🔄 Starting task…", text_color=COLORS["accent_amber"], reset_timer=True)
             self.log(f"[{device_id}] Starting campaign task for phone {phone} (Retry {retry_count}/{MAX_RETRIES})")
             
             status_str = "FAILED"
