@@ -2694,7 +2694,7 @@ def _process_device_internal(app, device_id, phone, adb_path, offset_captcha, se
             fail_texts = ["account already exists", "account locked", "was linked to this account", "account exists"]
             import unicodedata
             app.log(f"[{device_id}] Waiting for next screen after OTP (Timeout: 30s)")
-            while time.time() - start_wait < 30:
+            while time.time() - start_wait < 25:
                 if not app.is_running or device_id not in app.active_running_devices: return False
                 xml_data = get_ui_xml(device_id, adb_path, app)
                 if xml_data:
@@ -2704,7 +2704,8 @@ def _process_device_internal(app, device_id, phone, adb_path, offset_captcha, se
                     if any(t in visible_texts for t in fail_texts):
                         app.log(f"[{device_id}] ❌ Phát hiện lỗi: Tài khoản đã tồn tại hoặc Bị khóa. Ghi số {phone} vào file.")
                         try:
-                            with open("sdt_da_ton_tai.txt", "a", encoding="utf-8") as f:
+                            sdt_path = os.path.join(os.path.dirname(__file__), "sdt_da_ton_tai.txt")
+                            with open(sdt_path, "a", encoding="utf-8") as f:
                                 f.write(f"{phone}\n")
                         except Exception as e:
                             app.log(f"[{device_id}] Lỗi ghi file sdt: {e}", level="ERROR")

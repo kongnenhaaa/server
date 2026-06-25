@@ -1,0 +1,12 @@
+{
+    "status": true,
+    "app_id": "3151270984274302494",
+    "name": "MiniApp_3151270984274302494",
+    "access_token": "owsJ8YlENsFCfvKiAC9ORScXbISitoCfolVl2t3rM3gTxT4ICETc8QZOtpesnd8OjUB3ApBz31UDpi0X3TflQvBX_sOhrLOjkyFk8HZ9SYc-gimpBPK22TIDp05nhM98dAh1TGUV2ddhdCXDOBr6MkogxdWCoa5ial_vJ2ZNJaI_lirk1efc8uMMtpyNeamZkPppApwzF0pOsez2TVj0L9d3qtW2vHfmlyQcH2gxBW_6hveeNSSr5VlcXryQvXfge8UETaMs97_0rOfBKjey1-tvaYfN-XigrC6oFrVmCYRgpf9iNF4-MDsMbb9nXLL8ve3jSLZXBt6yt9jUFCS4VA_-bpDEbou0_ONbD5-59YlSh-iTVOTJKs5gr53wU2lJMs8",
+    "refresh_token": "kBBM2hjVYZc_kD04k5EDDxg-q0-yJlPc_jV6GOmxzIJ9egPUjm-KCk-6k7MJFfCkq8MWKgHe-H7wmljP_qtmOulYtI7N3jL1regA0DWzf6QwihnKj3lWElgw-4c73FSkmhJEVjWbt1E4bOHwrdBS5RZAxdZ-Sz4ehFdfIzf5uWAShxnFqKMv5AJGi73o8-iOYwtoHev6qHlOplHcX5Rs5DN2r76rIjGGpwJNAQnDYqpyv88XWbAfOC3SyJcbMl0BnSBhCReguqh-pFWFioBTQzEAnZAz9iHrxuZf3xCkvst2Xi9HfJsVO_QWhIQlAfPdeBAbFCWKa0MHXwbXrM6fBQNcbmhe2ej6cgpP6pVUQWgxGeuu",
+    "expires_in": 3600,
+    "captured_at": 1782353161376,
+    "source": "CookiesOAuthExchange",
+    "created_at": "2026-06-25 09:06:01",
+    "exchange": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhM2M4YzJmNGMwOWIxNTAzOGUwODYxNiIsInphbG9JZCI6IjczNjY0MTgzNTkzNjI1MzgyOCIsInphbG9JZEJ5T0EiOiI1NzIwNzAxNTY0ODgwNzAwMTE0IiwiemFsb05hbWUiOiJQaGFtIEhvYW5nIFllbiIsImF2YXRhciI6Imh0dHBzOi8vczEyMC1hdmEtdGFsay56YWRuLnZuL2RlZmF1bHQiLCJwaG9uZSI6IjA5OTMwNDE1NjUiLCJsb2NhdGlvbiI6IiIsImNoYW5uZWwiOiJ6YWxvIiwiY2FtcGFpZ25JZCI6IjY5ZGRmN2I2NmY1OTNmMjZjNWRhZjlhNSIsImlhdCI6MTc4MjM1MzE2MiwiZXhwIjoxNzgyMzk2MzYyfQ.VEOiDNVtqdoYLfK_upv98w46XA0w5SIjQxL5sC3EoLA"
+}
