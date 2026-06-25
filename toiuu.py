@@ -3042,27 +3042,13 @@ def _process_device_internal(app, device_id, phone, adb_path, offset_captcha, se
         btn_thamgia_x = int(screen_w * (588 / 1080))
         btn_thamgia_y = int(screen_h * (1755 / 2220))
         
-        app.log(f"[{device_id}] Scanning for participate button state...")
+        app.log(f"[{device_id}] Clicking Participate button...")
         run_adb([adb_path, "-s", device_id, "shell", "input", "tap", str(btn_thamgia_x), str(btn_thamgia_y)], timeout=5, device_id=device_id, app=app)
-        app_sleep(app, 5, device_id)
- 
-        # Dynamic wait for participation response (up to 7s)
-        mini_app_success = False
-        start_thamgia = time.time()
-        while time.time() - start_thamgia < 25:
-            if not app.is_running or device_id not in app.active_running_devices: return "TERMINATED"
-            if check_text_exists(device_id, ["tham gia", "success", "success", "congratulations", "gift", "confirm", "close"], adb_path):
-                app.log(f"[{device_id}] 7up mini app joined successfully!", level="SUCCESS")
-                mini_app_success = True
-                break
-            app_sleep(app, 5, device_id)
+        app.log(f"[{device_id}] Đã bấm Tham gia. Bỏ qua bước chờ xác nhận thành công.")
+        app_sleep(app, 6, device_id)
         
         # Minimize Zalo to background (press HOME key instead of force-stop)
         run_adb([adb_path, "-s", device_id, "shell", "input", "keyevent", "3"], timeout=5, device_id=device_id, app=app)
-        
-        if not mini_app_success:
-            app.log(f"[{device_id}] ⚠️ Mini App 7up failed — aborting")
-            return False
         
         # Open Token Extractor App
         app.update_device_ui(device_id, status_text="🔄 Saving Zalo Token...", text_color="#10b981")
