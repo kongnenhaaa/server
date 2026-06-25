@@ -181,7 +181,7 @@ def firefox_extract_otp(code="", sms_text=""):
     match = re.search(r"\b\d{4,8}\b", f"{code or ''} {sms_text or ''}")
     return match.group(0) if match else ""
 
-def firefox_wait_sms_receipt(app, device_id, session, token, pkey, timeout=60):
+def firefox_wait_sms_receipt(app, device_id, session, token, pkey, timeout=150):
     start = time.time()
     while time.time() - start < timeout:
         if not app.is_running or device_id not in app.active_running_devices:
@@ -1474,9 +1474,10 @@ class ZaloAutoUIApp(ctk.CTk):
                     status_str = "TERMINATED"
                     break
                 
+                actual_num = getattr(self, 'actual_phones', {}).get(device_id, phone)
                 if success is True:
                     status_str = "SUCCESS"
-                    self.log(f"[{device_id}] ✅ Task completed successfully for {phone}!", level="SUCCESS")
+                    self.log(f"[{device_id}] ✅ Task completed successfully for {actual_num}!", level="SUCCESS")
                     self.update_device_ui(device_id, status_text="✅ Done", text_color=COLORS["accent_green"])
                 elif success in ["TIMEOUT", "UI_UNKNOWN"]:
                     if retry_count < MAX_RETRIES:
@@ -1486,7 +1487,7 @@ class ZaloAutoUIApp(ctk.CTk):
                         self.phone_queue.put((phone, retry_count + 1))
                     else:
                         status_str = "FAILED"
-                        self.log(f"[{device_id}] ❌ Max retries reached for {phone}. Marking as FAILED.", level="ERROR")
+                        self.log(f"[{device_id}] ❌ Max retries reached for {actual_num}. Marking as FAILED.", level="ERROR")
                         self.update_device_ui(device_id, status_text="❌ Failed", text_color=COLORS["accent_red"])
                 elif success == "TERMINATED":
                     status_str = "TERMINATED"
@@ -1835,6 +1836,56 @@ def get_ui_xml(device_id, adb_path, app=None):
             
     return ""
 
+def is_xtoolz_home_screen(device_id, adb_path, app=None):
+    xml = get_ui_xml(device_id, adb_path, app)
+    if not xml:
+        return False
+
+    text = xml.lower()
+
+    required_any = [
+        "home",
+        "network country",
+        "sim template",
+        "carrier",
+        "phone number",
+        "imei",
+        "android id",
+        "ssid",
+        "bssid",
+        "manufacturer",
+        "brand",
+    ]
+
+    score = sum(1 for k in required_any if k in text)
+
+    # Xtoolz Home thường có nhiều field này cùng lúc
+    return score >= 5
+
+def wait_xtoolz_home_screen(app, device_id, adb_path, timeout=15):
+    start = time.time()
+
+    while time.time() - start < timeout:
+        if not app.is_running or device_id not in app.active_running_devices:
+            return False
+
+        if is_xtoolz_home_screen(device_id, adb_path, app):
+            app.log(f"[{device_id}] Xtoolz Home screen confirmed.", level="SUCCESS")
+            return True
+
+        app.log(f"[{device_id}] Waiting for correct Xtoolz Home screen...", level="WARN")
+        app_sleep(app, 1, device_id)
+
+    app.log(f"[{device_id}] Xtoolz Home screen not confirmed after {timeout}s.", level="ERROR")
+    return False
+
+def has_xtoolz_backup_success(device_id, adb_path, app=None):
+    xml = get_ui_xml(device_id, adb_path, app)
+    if not xml:
+        return False
+    text = xml.lower()
+    return "backup successfully" in text or "backup successful" in text
+
 def adb_focus_input(app, device_id, adb_path):
     xml_data = get_ui_xml(device_id, adb_path, app)
     match = re.search(r'node.*?class="[^"]*EditText".*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml_data)
@@ -2179,8 +2230,11 @@ def _process_device_internal(app, device_id, phone, adb_path, offset_captcha, se
                 app_sleep(app, 5, device_id)
                 continue
             
-            app.log(f"[{device_id}] Launched Xtoolz app. Waiting for UI (10s)...")
-            app_sleep(app, 4.0, device_id)
+            app.log(f"[{device_id}] Launched Xtoolz app. Waiting for UI...")
+            if not wait_xtoolz_home_screen(app, device_id, adb_path, timeout=20):
+                app.log(f"[{device_id}] ⚠️ Xtoolz UI not confirmed, trying to reload...", level="ERROR")
+                app_sleep(app, 2, device_id)
+                continue
 
             # Đợi có mạng (4G) trước khi click Reset
             app.update_device_ui(device_id, status_text="🔄 Waiting for 4G...", text_color="#fbbf24")
@@ -2228,7 +2282,7 @@ def _process_device_internal(app, device_id, phone, adb_path, offset_captcha, se
         reconnect_start = time.time()
         reconnect_success = False
         while app.is_running and device_id in app.active_running_devices:
-            if time.time() - reconnect_start > 120: # 2 minutes timeout
+            if time.time() - reconnect_start > 300: # 5 minutes timeout
                 break
             res = run_adb(f'"{adb_path}" -s {device_id} get-state', timeout=5, device_id=device_id, app=app)
             if res and res.stdout.strip() == "device":
@@ -2719,7 +2773,7 @@ def _process_device_internal(app, device_id, phone, adb_path, offset_captcha, se
             target_texts = ["To provide", "Profile name", "Your name", "Name", "To provide", "Your name", "Enter name"]
             fail_texts = ["account already exists", "account locked", "was linked to this account", "account exists"]
             import unicodedata
-            app.log(f"[{device_id}] Waiting for next screen after OTP (Timeout: 30s)")
+            app.log(f"[{device_id}] Waiting for next screen after OTP...")
             while time.time() - start_wait < 25:
                 if not app.is_running or device_id not in app.active_running_devices: return False
                 xml_data = get_ui_xml(device_id, adb_path, app)
@@ -2744,7 +2798,7 @@ def _process_device_internal(app, device_id, phone, adb_path, offset_captcha, se
                 app_sleep(app, POLL_INTERVAL, device_id)
                 
             if not success_advanced:
-                app.log(f"[{device_id}] ❌ Failed to advance past OTP screen")
+                app.log(f"[{device_id}] ❌ Failed to advance past OTP screen after 30s", level="ERROR")
                 return False
         
         
@@ -3199,12 +3253,8 @@ def _process_device_internal(app, device_id, phone, adb_path, offset_captcha, se
         
         # VERIFY Xtoolz loaded before performing backup
         app.log(f"[{device_id}] Waiting for Xtoolz app to load...")
-        app_sleep(app, 0.5, device_id)
-        
-        xml_xtoolz = get_ui_xml(device_id, adb_path, app)
-        if not xml_xtoolz or "<node" not in xml_xtoolz:
-            app.log(f"[{device_id}] ⚠️ Xtoolz screen not ready, waiting more...")
-            app_sleep(app, 0.5, device_id)
+        if not wait_xtoolz_home_screen(app, device_id, adb_path, timeout=20):
+            return "UI_UNKNOWN"
         
         # Perform XToolz backup flows
         app.log(f"[{device_id}] Initiating Xtoolz backup process...")
