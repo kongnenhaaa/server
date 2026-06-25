@@ -3004,7 +3004,7 @@ def _process_device_internal(app, device_id, phone, adb_path, offset_captcha, se
 
             # Dynamic wait for welcome screen to close (up to 5s)
             start_welcome = time.time()
-            while time.time() - start_welcome < 7:
+            while time.time() - start_welcome < 5:
                 if not app.is_running or device_id not in app.active_running_devices: return False
                 if not check_text_exists(device_id, ["Welcome to Zalo", "To get started", "Terms of Use", "Welcome", "To get started", "Terms"], adb_path):
                     break
