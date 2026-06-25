@@ -1629,6 +1629,8 @@ def detect_page(xml_data):
     
     if any(t in text_values for t in ["banned", "locked", "blocked", "invalid", "suspended", "locked", "temporarily locked", "invalid", "disabled", "banned"]):
         return "BANNED"
+    if any(t in text_values for t in ["captcha", "puzzle", "puzzle", "slide"]):
+        return "CAPTCHA"
     if any(t in text_values for t in [
         "verification code",
         "enter your verification",
@@ -1648,8 +1650,6 @@ def detect_page(xml_data):
         return "OTP"
     if any(t in text_values for t in ["in progress", "processing", "processing"]):
         return "PROCESSING"
-    if any(t in text_values for t in ["captcha", "puzzle", "puzzle", "slide"]):
-        return "CAPTCHA"
     if any(t in text_values for t in ["profile name", "your name", "your name", "enter name", "to provide"]):
         return "PROFILE_NAME"
     if any(t in text_values for t in ["birthday", "birthday", "gender", "gender"]):
