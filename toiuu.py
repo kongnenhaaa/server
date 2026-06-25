@@ -2142,16 +2142,29 @@ def _process_device_internal(app, device_id, phone, adb_path, offset_captcha, se
             app.log(f"[{device_id}] Reset 4G attempt {attempt}/{max_reset_retry}")
 
             XTOOLZ_PACKAGE = "app.pixel.xtoolz"
-            launch_res = run_adb(
-                [adb_path, "-s", device_id, "shell", "monkey", "-p", XTOOLZ_PACKAGE, "-c", "android.intent.category.LAUNCHER", "1"],
-                timeout=8,
-                device_id=device_id,
-                app=app
-            )
+            resolve_res = run_adb(f'"{adb_path}" -s {device_id} shell "cmd package resolve-activity --brief {XTOOLZ_PACKAGE}"', timeout=5, device_id=device_id, app=app)
+            component = None
+            if resolve_res and resolve_res.returncode == 0:
+                lines = (resolve_res.stdout or "").replace('\r', '').strip().split('\n')
+                if lines and '/' in lines[-1]:
+                    component = lines[-1].strip()
+            
+            if component:
+                launch_res = run_adb(f'"{adb_path}" -s {device_id} shell am start -n {component}', timeout=8, device_id=device_id, app=app)
+            else:
+                launch_res = run_adb(
+                    [adb_path, "-s", device_id, "shell", "monkey", "-p", XTOOLZ_PACKAGE, "-c", "android.intent.category.LAUNCHER", "1"],
+                    timeout=8,
+                    device_id=device_id,
+                    app=app
+                )
+
+            stdout = launch_res.stdout.strip() if launch_res else ""
+            stderr = launch_res.stderr.strip() if launch_res else ""
+            if launch_res and launch_res.returncode == 0 and "bash arg:" in stdout:
+                launch_res.returncode = 1 # Coi như lỗi do monkey bị chặn
 
             if not launch_res or launch_res.returncode != 0:
-                stdout = launch_res.stdout.strip() if launch_res else ""
-                stderr = launch_res.stderr.strip() if launch_res else ""
                 err_text = f"{stdout} {stderr}".lower()
 
                 if any(x in err_text for x in ["device not found", "offline", "no devices", "not found"]):
@@ -2305,7 +2318,16 @@ def _process_device_internal(app, device_id, phone, adb_path, offset_captcha, se
             run_adb([adb_path, "-s", device_id, "shell", "wm", "dismiss-keyguard"], timeout=5, device_id=device_id, app=app)
             app_sleep(app, 0.3, device_id)
             
-            run_adb(f'"{adb_path}" -s {device_id} shell monkey -p com.zing.zalo -c android.intent.category.LAUNCHER 1', timeout=8, device_id=device_id, app=app)
+            resolve_zalo = run_adb(f'"{adb_path}" -s {device_id} shell "cmd package resolve-activity --brief com.zing.zalo"', timeout=5, device_id=device_id, app=app)
+            z_component = None
+            if resolve_zalo and resolve_zalo.returncode == 0:
+                lines = (resolve_zalo.stdout or "").replace('\r', '').strip().split('\n')
+                if lines and '/' in lines[-1]:
+                    z_component = lines[-1].strip()
+            if z_component:
+                run_adb(f'"{adb_path}" -s {device_id} shell am start -n {z_component}', timeout=8, device_id=device_id, app=app)
+            else:
+                run_adb(f'"{adb_path}" -s {device_id} shell monkey -p com.zing.zalo -c android.intent.category.LAUNCHER 1', timeout=8, device_id=device_id, app=app)
             app.log(f"[{device_id}] Launched Zalo app (Attempt {launch_attempt+1}/2). Waiting for UI...")
             
             # Dismiss Google Smart Lock / "Sign in with ease" popups that overlay Zalo
@@ -2482,7 +2504,7 @@ def _process_device_internal(app, device_id, phone, adb_path, offset_captcha, se
         if page_detected == "captcha":
             app.update_device_ui(device_id, status_text="🧩 Solving Captcha...", text_color="#e11d48")
             attempt = 0
-            max_captcha_attempts = 3
+            max_captcha_attempts = 5
             captcha_solved = False
             
             while app.is_running and device_id in app.active_running_devices and attempt < max_captcha_attempts:
@@ -2531,6 +2553,10 @@ def _process_device_internal(app, device_id, phone, adb_path, offset_captcha, se
                         return False
 
                     if page_after in ["TIMEOUT", "STOPPED", "UNKNOWN"]:
+                        xml_chk = get_ui_xml(device_id, adb_path, app)
+                        if detect_page(xml_chk) == "CAPTCHA":
+                            app.log(f"[{device_id}] Hết thời gian chờ nhưng vẫn ở màn hình CAPTCHA, thử giải lại...")
+                            continue
                         app.log(f"[{device_id}] Timeout/Lỗi màn sau captcha: {page_after}")
                         return "UI_UNKNOWN"
                 else:
@@ -3148,12 +3174,24 @@ def _process_device_internal(app, device_id, phone, adb_path, offset_captcha, se
         run_adb(f'"{adb_path}" -s {device_id} shell am force-stop {token_pkg}', timeout=5, device_id=device_id, app=app)
         # Locate package dynamically
         XTOOLZ_PACKAGE = "app.pixel.xtoolz"
-        launch_res = run_adb(
-            [adb_path, "-s", device_id, "shell", "monkey", "-p", XTOOLZ_PACKAGE, "-c", "android.intent.category.LAUNCHER", "1"],
-            timeout=8,
-            device_id=device_id,
-            app=app
-        )
+        resolve_xtoolz2 = run_adb(f'"{adb_path}" -s {device_id} shell "cmd package resolve-activity --brief {XTOOLZ_PACKAGE}"', timeout=5, device_id=device_id, app=app)
+        xt_component = None
+        if resolve_xtoolz2 and resolve_xtoolz2.returncode == 0:
+            lines = (resolve_xtoolz2.stdout or "").replace('\r', '').strip().split('\n')
+            if lines and '/' in lines[-1]:
+                xt_component = lines[-1].strip()
+        if xt_component:
+            launch_res = run_adb(f'"{adb_path}" -s {device_id} shell am start -n {xt_component}', timeout=8, device_id=device_id, app=app)
+        else:
+            launch_res = run_adb(
+                [adb_path, "-s", device_id, "shell", "monkey", "-p", XTOOLZ_PACKAGE, "-c", "android.intent.category.LAUNCHER", "1"],
+                timeout=8,
+                device_id=device_id,
+                app=app
+            )
+        stdout_xt = launch_res.stdout.strip() if launch_res else ""
+        if launch_res and launch_res.returncode == 0 and "bash arg:" in stdout_xt:
+            launch_res.returncode = 1
 
         if not launch_res or launch_res.returncode != 0:
             app.log(f"[{device_id}] Không mở được Xtoolz package={XTOOLZ_PACKAGE}", level="ERROR")
