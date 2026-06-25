@@ -21,7 +21,7 @@ FIREFOX_API_URL = "http://www.firefox.fun/yhapi.ashx"
 
 excel_lock = threading.Lock()
 
-def log_to_excel(phone, otp_received, trigger_success, backup_success):
+def log_to_excel(phone, status, reason, otp_received, trigger_success, backup_success):
     excel_path = os.path.join(os.path.dirname(__file__), "campaign_stats.xlsx")
     with excel_lock:
         try:
@@ -29,13 +29,13 @@ def log_to_excel(phone, otp_received, trigger_success, backup_success):
                 wb = openpyxl.Workbook()
                 ws = wb.active
                 ws.title = "Campaign Stats"
-                ws.append(["Time", "Phone Number", "OTP Received", "Trigger Success", "Backup Success"])
+                ws.append(["Time", "Phone Number", "Status", "Reason", "OTP Received", "Trigger Success", "Backup Success"])
             else:
                 wb = openpyxl.load_workbook(excel_path)
                 ws = wb.active
             
             now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            ws.append([now_str, str(phone), "Yes" if otp_received else "No", "Yes" if trigger_success else "No", "Yes" if backup_success else "No"])
+            ws.append([now_str, str(phone), status, str(reason), "Yes" if otp_received else "No", "Yes" if trigger_success else "No", "Yes" if backup_success else "No"])
             wb.save(excel_path)
         except Exception as e:
             print(f"Error saving to excel: {e}")
@@ -2096,7 +2096,8 @@ def process_device(app, device_id, phone, adb_path, offset_captcha, session, fir
         # EXPORT STATS TO EXCEL
         actual_phone = getattr(app, 'actual_phones', {}).get(device_id, phone)
         if actual_phone and actual_phone != "FIREFOX_AUTO":
-            log_to_excel(actual_phone, ff_ctx["otp_received"], ff_ctx["trigger_success"], ff_ctx["backup_success"])
+            reason = getattr(app, 'device_last_error', {}).get(device_id, "") if status_str != "SUCCESS" else ""
+            log_to_excel(actual_phone, status_str, reason, ff_ctx["otp_received"], ff_ctx["trigger_success"], ff_ctx["backup_success"])
 
         ff_token = app.ff_token_entry.get().strip()
         if ff_ctx.get("pkey"):
@@ -3044,9 +3045,20 @@ def _process_device_internal(app, device_id, phone, adb_path, offset_captcha, se
         
         app.log(f"[{device_id}] Clicking Participate button...")
         run_adb([adb_path, "-s", device_id, "shell", "input", "tap", str(btn_thamgia_x), str(btn_thamgia_y)], timeout=5, device_id=device_id, app=app)
-        app.log(f"[{device_id}] Đã bấm Tham gia. Bỏ qua bước chờ xác nhận thành công.")
-        app_sleep(app, 6, device_id)
+        app_sleep(app, 5, device_id)
         
+        # Dynamic wait for participation response
+        mini_app_success = False
+        start_thamgia = time.time()
+        app.log(f"[{device_id}] Scanning for participation response...")
+        while time.time() - start_thamgia < 25:
+            if not app.is_running or device_id not in app.active_running_devices: return "TERMINATED"
+            if check_text_exists(device_id, ["tham gia", "success", "success", "congratulations", "gift", "confirm", "close"], adb_path):
+                app.log(f"[{device_id}] 7up mini app joined successfully!", level="SUCCESS")
+                mini_app_success = True
+                break
+            app_sleep(app, 7, device_id)
+            
         # Minimize Zalo to background (press HOME key instead of force-stop)
         run_adb([adb_path, "-s", device_id, "shell", "input", "keyevent", "3"], timeout=5, device_id=device_id, app=app)
         
