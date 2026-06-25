@@ -1831,7 +1831,8 @@ def get_ui_xml(device_id, adb_path, app=None):
             app.device_errors = {}
         app.device_errors[device_id] = app.device_errors.get(device_id, 0) + 1
         if app.device_errors[device_id] >= 4:
-            app.log(f"[{device_id}] ⚠️ PHÁT HIỆN THIẾT BỊ TREO/LAG (UI Dump thất bại 4 lần liên tiếp). Ép dừng tiến trình để tránh kẹt số!", level="ERROR")
+            app.log(f"[{device_id}] ⚠️ PHÁT HIỆN THIẾT BỊ TREO/LAG (UI Dump thất bại 4 lần liên tiếp). Gửi lệnh reboot để tự động khởi động lại máy!", level="ERROR")
+            run_adb(f'"{adb_path}" -s {device_id} reboot', timeout=10, device_id=device_id, app=app)
             app.active_running_devices.discard(device_id)
             
     return ""
@@ -2187,7 +2188,7 @@ def _process_device_internal(app, device_id, phone, adb_path, offset_captcha, se
         
         max_reset_retry = 5
         reset_accepted = False
-        offline_timeout_loops = int(35 / 0.5) # 35 seconds
+        offline_timeout_loops = int(90 / 0.5) # 90 seconds
         for attempt in range(1, max_reset_retry + 1):
             if not app.is_running or device_id not in app.active_running_devices: return False
             app.log(f"[{device_id}] Reset 4G attempt {attempt}/{max_reset_retry}")
