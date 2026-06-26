@@ -2284,7 +2284,9 @@ def _process_device_internal(app, device_id, phone, adb_path, offset_captcha, se
         reconnect_start = time.time()
         reconnect_success = False
         while app.is_running and device_id in app.active_running_devices:
-            if time.time() - reconnect_start > 300: # 5 minutes timeout
+            if time.time() - reconnect_start > 600: # 10 minutes timeout
+                app.log(f"[{device_id}] ⚠️ Quá 10p không thấy tín hiệu ADB, gửi lệnh reboot...")
+                run_adb(f'"{adb_path}" -s {device_id} reboot', timeout=10, device_id=device_id, app=app)
                 break
             res = run_adb(f'"{adb_path}" -s {device_id} get-state', timeout=5, device_id=device_id, app=app)
             if res and res.stdout.strip() == "device":
@@ -2329,7 +2331,9 @@ def _process_device_internal(app, device_id, phone, adb_path, offset_captcha, se
         net_success = False
         
         while app.is_running and device_id in app.active_running_devices:
-            if time.time() - net_start > 1000000: # 4 minutes max wait for network
+            if time.time() - net_start > 600: # 10 minutes timeout
+                app.log(f"[{device_id}] ⚠️ Quá 10p chưa kết nối được 4G lần 2, gửi lệnh reboot...")
+                run_adb(f'"{adb_path}" -s {device_id} reboot', timeout=10, device_id=device_id, app=app)
                 break
             
             ping_res = run_adb(f'"{adb_path}" -s {device_id} shell ping -c 1 -W 3 8.8.8.8', timeout=8, device_id=device_id, app=app)
