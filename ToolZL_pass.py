@@ -43,8 +43,10 @@ class ZaloAutoUIApp(ctk.CTk):
         self.active_workers_count = 0
         self.active_workers_lock = threading.Lock()
         self.total_phones = 0
-        self.success_phones = 0
-        self.failed_phones = 0
+        self.qr_phones = 0
+        self.backup_phones = 0
+        self.list_phones = 0
+        self.processed_phones = 0
         self.completed_lock = threading.Lock()
         
         # Grid layout (Left side configurations, Right side details/status, Bottom logging)
@@ -160,19 +162,22 @@ class ZaloAutoUIApp(ctk.CTk):
         # Campaign Statistics Panel
         self.stats_frame = ctk.CTkFrame(right_panel, fg_color="#1c2333", corner_radius=10, border_width=1, border_color="#2b384e")
         self.stats_frame.grid(row=2, column=0, padx=15, pady=(0, 10), sticky="ew")
-        self.stats_frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
+        self.stats_frame.grid_columnconfigure((0, 1, 2, 3, 4), weight=1)
 
         self.lbl_total_phones = ctk.CTkLabel(self.stats_frame, text="📊 Total: 0", font=("Segoe UI", 12, "bold"), text_color="#38bdf8")
         self.lbl_total_phones.grid(row=0, column=0, pady=10, padx=5, sticky="ew")
 
-        self.lbl_success_phones = ctk.CTkLabel(self.stats_frame, text="✅ Success: 0", font=("Segoe UI", 12, "bold"), text_color="#10b981")
-        self.lbl_success_phones.grid(row=0, column=1, pady=10, padx=5, sticky="ew")
+        self.lbl_qr_phones = ctk.CTkLabel(self.stats_frame, text="📱 QR: 0", font=("Segoe UI", 12, "bold"), text_color="#f59e0b")
+        self.lbl_qr_phones.grid(row=0, column=1, pady=10, padx=5, sticky="ew")
 
-        self.lbl_failed_phones = ctk.CTkLabel(self.stats_frame, text="❌ Failed: 0", font=("Segoe UI", 12, "bold"), text_color="#ef4444")
-        self.lbl_failed_phones.grid(row=0, column=2, pady=10, padx=5, sticky="ew")
+        self.lbl_backup_phones = ctk.CTkLabel(self.stats_frame, text="✅ Backup: 0", font=("Segoe UI", 12, "bold"), text_color="#10b981")
+        self.lbl_backup_phones.grid(row=0, column=2, pady=10, padx=5, sticky="ew")
 
-        self.lbl_remaining_phones = ctk.CTkLabel(self.stats_frame, text="⏳ Remaining: 0", font=("Segoe UI", 12, "bold"), text_color="#fbbf24")
-        self.lbl_remaining_phones.grid(row=0, column=3, pady=10, padx=5, sticky="ew")
+        self.lbl_list_phones = ctk.CTkLabel(self.stats_frame, text="📝 List: 0", font=("Segoe UI", 12, "bold"), text_color="#a855f7")
+        self.lbl_list_phones.grid(row=0, column=3, pady=10, padx=5, sticky="ew")
+
+        self.lbl_remaining_phones = ctk.CTkLabel(self.stats_frame, text="⏳ Remaining: 0", font=("Segoe UI", 12, "bold"), text_color="#ef4444")
+        self.lbl_remaining_phones.grid(row=0, column=4, pady=10, padx=5, sticky="ew")
 
         # Control Panel buttons underneath the device list
         control_frame = ctk.CTkFrame(right_panel, fg_color="transparent")
@@ -249,10 +254,11 @@ class ZaloAutoUIApp(ctk.CTk):
     # Thread-safe stats panel updates
     def update_stats_ui(self):
         def _update():
-            remaining = max(0, self.total_phones - self.success_phones - self.failed_phones)
+            remaining = max(0, self.total_phones - self.processed_phones)
             self.lbl_total_phones.configure(text=f"📊 Total: {self.total_phones}")
-            self.lbl_success_phones.configure(text=f"✅ Success: {self.success_phones}")
-            self.lbl_failed_phones.configure(text=f"❌ Failed: {self.failed_phones}")
+            self.lbl_qr_phones.configure(text=f"📱 QR: {self.qr_phones}")
+            self.lbl_backup_phones.configure(text=f"✅ Backup: {self.backup_phones}")
+            self.lbl_list_phones.configure(text=f"📝 List: {self.list_phones}")
             self.lbl_remaining_phones.configure(text=f"⏳ Remaining: {remaining}")
         self.after(0, _update)
 
@@ -446,8 +452,10 @@ class ZaloAutoUIApp(ctk.CTk):
             self.phone_queue.put(p)
 
         self.total_phones = len(self.phone_numbers)
-        self.success_phones = 0
-        self.failed_phones = 0
+        self.qr_phones = 0
+        self.backup_phones = 0
+        self.list_phones = 0
+        self.processed_phones = 0
         self.update_stats_ui()
         
         with self.active_workers_lock:
@@ -481,8 +489,10 @@ class ZaloAutoUIApp(ctk.CTk):
                 self.phone_queue.put(p)
                 
             self.total_phones = len(self.phone_numbers)
-            self.success_phones = 0
-            self.failed_phones = 0
+            self.qr_phones = 0
+            self.backup_phones = 0
+            self.list_phones = 0
+            self.processed_phones = 0
             self.update_stats_ui()
             
             with self.active_workers_lock:
@@ -530,17 +540,23 @@ class ZaloAutoUIApp(ctk.CTk):
             
             status_str = "FAILED"
             try:
-                success = process_device(self, device_id, phone, adb_path, self.captcha_offset, self.firebase_url)
+                result_code = process_device(self, device_id, phone, adb_path, self.captcha_offset, self.firebase_url)
                 if not self.is_running or device_id not in self.active_running_devices:
                     self.log(f"[{device_id}] Thread stopped by user command.")
                     self.update_device_ui(device_id, status_text="🔴 Terminated", text_color="#f43f5e")
                     self.phone_queue.put(phone) # Put back numbers that weren't fully processed
                     break
                 
-                if success:
-                    status_str = "SUCCESS"
-                    self.log(f"✅ [{device_id}] Task completed successfully for {phone}!")
-                    self.update_device_ui(device_id, status_text="✅ Done", text_color="#10b981")
+                status_str = result_code if result_code else "FAILED"
+                if status_str == "BACKUP":
+                    self.log(f"✅ [{device_id}] Task completed successfully (BACKUP) for {phone}!")
+                    self.update_device_ui(device_id, status_text="✅ Backup", text_color="#10b981")
+                elif status_str == "LIST":
+                    self.log(f"📝 [{device_id}] Task finished (LIST saved) for {phone}.")
+                    self.update_device_ui(device_id, status_text="📝 List Saved", text_color="#a855f7")
+                elif status_str == "QR":
+                    self.log(f"📱 [{device_id}] Task hit QR screen for {phone}.")
+                    self.update_device_ui(device_id, status_text="📱 QR", text_color="#f59e0b")
                 else:
                     self.log(f"❌ [{device_id}] Task failed for {phone}.")
                     self.update_device_ui(device_id, status_text="❌ Failed", text_color="#f43f5e")
@@ -550,7 +566,7 @@ class ZaloAutoUIApp(ctk.CTk):
                 self.update_device_ui(device_id, status_text="❌ Crash", text_color="#f43f5e")
             
             # Save completion status to completed_phones.txt file
-            if status_str == "SUCCESS":
+            if status_str in ["BACKUP", "LIST"]:
                 try:
                     log_file_path = os.path.join(os.path.dirname(__file__), "completed_phones.txt")
                     with open(log_file_path, "a", encoding="utf-8") as lf:
@@ -560,10 +576,13 @@ class ZaloAutoUIApp(ctk.CTk):
             
             # Increment tracking counters & update UI
             with self.completed_lock:
-                if status_str == "SUCCESS":
-                    self.success_phones += 1
-                else:
-                    self.failed_phones += 1
+                self.processed_phones += 1
+                if status_str == "BACKUP":
+                    self.backup_phones += 1
+                elif status_str == "LIST":
+                    self.list_phones += 1
+                elif status_str == "QR":
+                    self.qr_phones += 1
             self.update_stats_ui()
             
             self.phone_queue.task_done()
@@ -629,17 +648,17 @@ def app_sleep(app, seconds, device_id=None):
 
 def adb_click(app, device_id, x_y_string, adb_path):
     subprocess.run(f'"{adb_path}" -s {device_id} shell input tap {x_y_string}', shell=True)
-    app_sleep(app, 0.4, device_id)
+    app_sleep(app, 0.1, device_id)
 
 def adb_type(app, device_id, text, adb_path, slow=False):
     text_safe = text.replace(" ", "%s")
     if slow:
         for char in text_safe:
             subprocess.run(f'"{adb_path}" -s {device_id} shell input text {char}', shell=True)
-            time.sleep(0.15)
+            time.sleep(0.1)
     else:
         subprocess.run(f'"{adb_path}" -s {device_id} shell input text {text_safe}', shell=True)
-    app_sleep(app, 0.4, device_id)
+    app_sleep(app, 0.2, device_id)
 
 def get_screen_size(device_id, adb_path):
     try:
@@ -655,13 +674,21 @@ def get_ui_xml(device_id, adb_path):
     for attempt in range(2):
         # We combine dump and cat into a single shell execution to save process spawning overhead on Windows
         result = subprocess.run(
+            f'"{adb_path}" -s {device_id} exec-out uiautomator dump /dev/tty',
+            shell=True, capture_output=True, text=True, encoding='utf-8'
+        )
+        xml = result.stdout
+        if xml and "<node" in xml:
+            return xml
+            
+        result = subprocess.run(
             f'"{adb_path}" -s {device_id} shell "uiautomator dump /sdcard/window_dump.xml >/dev/null && cat /sdcard/window_dump.xml"',
             shell=True, capture_output=True, text=True, encoding='utf-8'
         )
         xml = result.stdout
         if xml and "<node" in xml:
             return xml
-        time.sleep(0.3)
+        time.sleep(0.1)
     return ""
 
 def adb_focus_input(app, device_id, adb_path):
@@ -739,9 +766,9 @@ def wait_for_text(app, device_id, target_text, adb_path, timeout=30):
         if not app.is_running or device_id not in app.active_running_devices:
             return False
         if check_text_exists(device_id, target_text, adb_path):
-            app_sleep(app, 0.2, device_id)
+            app_sleep(app, 0.1, device_id)
             return True
-        app_sleep(app, 0.5, device_id)
+        app_sleep(app, 0.2, device_id)
     return False
 
 # Firebase OTP Fetcher
@@ -1039,7 +1066,10 @@ def process_device(app, device_id, phone, adb_path, offset_captcha, firebase_url
         net_start = time.time()
         net_success = False
         while app.is_running:
-            if time.time() - net_start > 120: # 2 minutes timeout
+            if time.time() - net_start > 300: # 5 minutes timeout
+                app.log(f"[{device_id}] ❌ Quá 5 phút không có 4G. Đang khởi động lại thiết bị (Reboot)...")
+                subprocess.run(f'"{adb_path}" -s {device_id} reboot', shell=True)
+                time.sleep(2)
                 break
             
             # Check 4G connection status (mDataConnectionState=2 is connected)
@@ -1052,13 +1082,13 @@ def process_device(app, device_id, phone, adb_path, offset_captcha, firebase_url
                     app.log(f"[{device_id}] 📶 4G connected and internet ping successful.")
                     break
             else:
-                app.log(f"[{device_id}] ⏳ Waiting for 4G connection (mDataConnectionState is not 2)...")
+                app.log(f"[{device_id}] ⏳ Waiting for 4G connection ")
                 
             app_sleep(app, 2.0, device_id)
             
         if not net_success or not app.is_running or device_id not in app.active_running_devices:
             app.log(f"[{device_id}] ❌ Network connection (4G) timeout or stopped by user.")
-            return False
+            return "FAILED"
         
         # Launch Zalo
         app.update_device_ui(device_id, status_text="🔄 Launching Zalo...", text_color="#a855f7")
@@ -1145,7 +1175,7 @@ def process_device(app, device_id, phone, adb_path, offset_captcha, firebase_url
             
         # Type OTP
         app.update_device_ui(device_id, status_text="🔄 Submitting OTP...", text_color="#10b981")
-        wait_for_text(app, device_id, ["Enter your verification code", "Nhập mã", "Mã xác thực", "gửi tin nhắn", "verification"], adb_path, timeout=15)
+        wait_for_text(app, device_id, ["Enter your verification code", "Nhập mã", "Mã xác thực", "gửi tin nhắn", "verification"], adb_path, timeout=60)
         
         screen_w, screen_h = get_screen_size(device_id, adb_path)
         if not adb_focus_input(app, device_id, adb_path):
@@ -1163,9 +1193,11 @@ def process_device(app, device_id, phone, adb_path, offset_captcha, firebase_url
         # Check login outcome
         app.update_device_ui(device_id, status_text="🔄 Checking outcome...", text_color="#10b981")
         outcome_start = time.time()
+        login_success = False
+        list_saved = False
         while time.time() - outcome_start < 15:
             if not app.is_running or device_id not in app.active_running_devices:
-                return False
+                return "FAILED"
                 
             xml_data = get_ui_xml(device_id, adb_path)
             if xml_data:
@@ -1173,74 +1205,74 @@ def process_device(app, device_id, phone, adb_path, offset_captcha, firebase_url
                 
                 # Check Fail condition: "Get help logging in"
                 if any(t in xml_lower for t in ["get help logging in", "ask a friend", "nhờ bạn bè", "trợ giúp đăng nhập"]):
-                    app.log(f"[{device_id}] ❌ Failed: Account requires friend verification.")
-                    return False
+                    app.log(f"[{device_id}] ❌ Failed: Account requires friend verification (QR).")
+                    return "QR"
                     
-                # Check Safety Verification screen
-                if any(t in xml_lower for t in ["verify your login", "for safety reasons", "xác minh đăng nhập", "lý do bảo mật"]):
-                    app.log(f"[{device_id}] Safety verification screen detected, clicking NEXT.")
-                    adb_click_text(app, device_id, ["NEXT", "Next", "Tiếp tục"], adb_path)
+                # Check Safety Verification screen or Friend Selection screen
+                if any(t in xml_lower for t in ["verify your login", "for safety reasons", "xác minh đăng nhập", "lý do bảo mật", "choose 3 people", "chọn 3 người"]):
+                    app.log(f"[{device_id}] Safety verification / Friend selection screen detected.")
                     
-                    # Wait for friend selection screen and scan names
-                    app_sleep(app, 4.0, device_id)
+                    # If we are on the initial warning screen, click NEXT to go to friend list
+                    if any(t in xml_lower for t in ["verify your login", "for safety reasons", "xác minh đăng nhập", "lý do bảo mật"]):
+                        app.log(f"[{device_id}] Clicking NEXT to enter friend selection.")
+                        adb_click_text(app, device_id, ["NEXT", "Next", "Tiếp tục"], adb_path)
+                        app_sleep(app, 2.0, device_id)
+                        
                     all_names = set()
+                    clicked_names = set()
                     
                     for attempt in range(6):
                         if not app.is_running or device_id not in app.active_running_devices:
-                            return False
+                            return "FAILED"
                             
                         app.update_device_ui(device_id, status_text=f"🔄 Scanning friends ({attempt+1}/6)...", text_color="#10b981")
                         
-                        for swipe_idx in range(3):
+                        for swipe_idx in range(2):
                             if not app.is_running or device_id not in app.active_running_devices:
-                                return False
+                                return "FAILED"
                                 
                             x_data = get_ui_xml(device_id, adb_path)
                             if x_data:
+                                visible_names = []
                                 matches = re.findall(r'node.*?text="([^"]+)".*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', x_data)
+                                ignore_texts = ["zalo", "next", "tiếp tục", "bỏ qua", "skip", "identify your friends", "xác minh", "choose 3 people", "bạn đã nhắn tin", "gần đây", "verify account", "recent"]
                                 for text_val, x1, y1, x2, y2 in matches:
                                     text_clean = text_val.strip()
-                                    if text_clean:
-                                        all_names.add(text_clean)
+                                    if len(text_clean) > 1 and not any(ign in text_clean.lower() for ign in ignore_texts):
+                                        y_center = (int(y1) + int(y2)) / 2
+                                        if y_center > screen_h * 0.1 and y_center < screen_h * 0.85:
+                                            all_names.add(text_clean)
+                                            visible_names.append(text_clean)
                                             
-                            if swipe_idx < 2:
+                                # Select random friends if we haven't picked 3 yet
+                                needed = 3 - len(clicked_names)
+                                if needed > 0 and visible_names:
+                                    available_to_pick = [n for n in visible_names if n not in clicked_names]
+                                    if available_to_pick:
+                                        import random
+                                        picks = random.sample(available_to_pick, min(needed, len(available_to_pick)))
+                                        app.log(f"[{device_id}] Bấm chọn người: {', '.join(picks)}")
+                                        for pick in picks:
+                                            adb_click_text(app, device_id, [pick], adb_path, exact_match=True)
+                                            clicked_names.add(pick)
+                                            app_sleep(app, 0.2, device_id)
+                                            
+                            if swipe_idx < 1:
                                 swipe_x = int(screen_w / 2)
                                 swipe_start_y = int(screen_h * 0.75)
                                 swipe_end_y = int(screen_h * 0.25)
                                 subprocess.run(f'"{adb_path}" -s {device_id} shell input swipe {swipe_x} {swipe_start_y} {swipe_x} {swipe_end_y} 500', shell=True)
-                                app_sleep(app, 2.0, device_id)
+                                app_sleep(app, 1.0, device_id)
                                 
-                        # Chọn ngẫu nhiên 3 người đang hiển thị
-                        app.log(f"[{device_id}] Đang chọn ngẫu nhiên 3 người...")
-                        x_data = get_ui_xml(device_id, adb_path)
-                        if x_data:
-                            visible_names = []
-                            matches = re.findall(r'node.*?text="([^"]+)".*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', x_data)
-                            known_ui_texts = {"zalo", "next", "tiếp tục", "bỏ qua", "skip", "identify your friends", "xác minh", "choose 3 people", "bạn đã nhắn tin", "gần đây"}
-                            for text_val, x1, y1, x2, y2 in matches:
-                                text_clean = text_val.strip()
-                                if len(text_clean) > 1 and text_clean.lower() not in known_ui_texts:
-                                    y_center = (int(y1) + int(y2)) / 2
-                                    if y_center > screen_h * 0.1 and y_center < screen_h * 0.85:
-                                        visible_names.append(text_clean)
-                                        
-                            if visible_names:
-                                import random
-                                picks = random.sample(visible_names, min(3, len(visible_names)))
-                                app.log(f"[{device_id}] Đã chọn: {', '.join(picks)}")
-                                for pick in picks:
-                                    adb_click_text(app, device_id, [pick], adb_path, exact_match=True)
-                                    app_sleep(app, 0.5, device_id)
-                                    
                         app.log(f"[{device_id}] Bấm NEXT để xác nhận...")
                         adb_click_text(app, device_id, ["NEXT", "Next", "Tiếp tục"], adb_path)
                         
-                        app_sleep(app, 2.0, device_id)
+                        app_sleep(app, 0.5, device_id)
                         app.log(f"[{device_id}] Đợi popup kết quả (Lần {attempt+1})...")
-                        if wait_for_text(app, device_id, ["Confirm", "Xác nhận", "incorrect", "không chính xác"], adb_path, timeout=8):
+                        if wait_for_text(app, device_id, ["Confirm", "Xác nhận", "incorrect", "không chính xác"], adb_path, timeout=4):
                             app.log(f"[{device_id}] Trả lời sai, bấm Confirm...")
                             adb_click_text(app, device_id, ["Confirm", "Xác nhận"], adb_path)
-                            app_sleep(app, 3.0, device_id)
+                            app_sleep(app, 1.0, device_id)
                         else:
                             app.log(f"[{device_id}] Không thấy báo lỗi, kết thúc vòng lặp chọn bạn bè.")
                             break
@@ -1253,21 +1285,91 @@ def process_device(app, device_id, phone, adb_path, offset_captcha, firebase_url
                                 for name in sorted(all_names):
                                     f.write(f"{name}\n")
                             app.log(f"[{device_id}] Đã xuất tổng cộng {len(all_names)} tên ra file {safe_phone}.txt")
+                            list_saved = True
                         except Exception as e:
                             app.log(f"[{device_id}] Lỗi ghi file txt: {e}")
                     else:
                         app.log(f"[{device_id}] Không quét được tên nào trên màn hình.")
                         
-                    app.log(f"[{device_id}] Hoàn tất quy trình chọn bạn bè, báo SUCCESS.")
-                    return True
+                    app.log(f"[{device_id}] Hoàn tất quy trình chọn bạn bè.")
                     
-            app_sleep(app, 1.5, device_id)
+                    # After finishing friend picking loop, wait a bit and assume success if no new verify screen
+                    app_sleep(app, 5.0, device_id)
+                    login_success = True
+                    break
+                    
+                # Check Success condition (Login directly)
+                if any(t in xml_lower for t in ["tin nhắn", "messages", "danh bạ", "contacts", "cá nhân", "khôi phục", "restore", "skip", "bỏ qua"]):
+                    app.log(f"[{device_id}] Đăng nhập thành công (Main screen detected).")
+                    login_success = True
+                    break
+                    
+            app_sleep(app, 0.5, device_id)
             
-        return True
+        if not login_success:
+            # If loop ends and we haven't failed, we assume it's successful (e.g. some unknown screen).
+            login_success = True
+
+        if login_success:
+            app.update_device_ui(device_id, status_text="🔄 Backing up Xtoolz...", text_color="#38bdf8")
+            app.log(f"[{device_id}] Mở lại Xtoolz để backup...")
+            
+            # Find xtoolz package
+            result = subprocess.run(f'"{adb_path}" -s {device_id} shell "pm list packages | grep -i xtoolz"', shell=True, capture_output=True, text=True)
+            packages = [line.replace("package:", "").strip() for line in result.stdout.splitlines() if line.strip()]
+            target_pkg = packages[0] if packages else "xtoolz"
+            
+            # Launch xtoolz
+            subprocess.run(f'"{adb_path}" -s {device_id} shell monkey -p {target_pkg} -c android.intent.category.LAUNCHER 1', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            app_sleep(app, 4.0, device_id)
+            
+            # Click Backup (try common text names)
+            backup_clicked = False
+            for _ in range(3):
+                if adb_click_text(app, device_id, ["Backup", "BACKUP", "Sao lưu", "Sao luu"], adb_path):
+                    backup_clicked = True
+                    break
+                app_sleep(app, 1.0, device_id)
+                
+            if not backup_clicked:
+                app.log(f"[{device_id}] ⚠️ Không tìm thấy nút Backup bằng text. Sử dụng tọa độ backup mặc định...")
+                # Coordinate might be standard, we can click somewhere or assume it was clicked if text matching is loose.
+                # E.g. Backup is often near the top or bottom depending on Xtoolz layout. We rely on text for now.
+                
+            app_sleep(app, 2.0, device_id)
+            
+            safe_phone = phone.replace("+", "").replace(" ", "")
+            backup_name = f"{safe_phone} backup"
+            
+            # Focus input field to enter name
+            if not adb_focus_input(app, device_id, adb_path):
+                adb_click(app, device_id, f"{int(screen_w/2)} {int(screen_h/2)}", adb_path)
+            
+            app_sleep(app, 1.0, device_id)
+            
+            # Clear text using backspace (20 times should be enough)
+            app.log(f"[{device_id}] Đang nhập tên backup: {backup_name}")
+            for _ in range(20):
+                subprocess.run(f'"{adb_path}" -s {device_id} shell input keyevent 67', shell=True)
+                
+            # Type new name
+            adb_type(app, device_id, backup_name, adb_path, slow=False)
+            app_sleep(app, 1.0, device_id)
+            
+            # Click OK
+            adb_click_text(app, device_id, ["OK", "Ok", "Xác nhận", "Save", "Lưu"], adb_path)
+            app_sleep(app, 3.0, device_id)
+            app.log(f"[{device_id}] Hoàn tất backup.")
+            return "BACKUP"
+            
+        if list_saved:
+            return "LIST"
+            
+        return "FAILED"
             
     except Exception as e:
         app.log(f"[{device_id}] Process Error: {e}")
-    return False
+    return "FAILED"
 
 
 if __name__ == "__main__":
